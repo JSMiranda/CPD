@@ -2,11 +2,12 @@ CPD
 ===
 Testing the "cost" function computation time:
 
-  1) Compile test.c with math libraby:
-gcc test.c -o test -lm
 
-  2) Run unix time to compare the times of computing or not the function:
-time ./test t
+  1) Compile using make
+
+  
+  2) Run unix time to compare the times of parallel or sequential implementation:
+
+time ./test p
+
 time ./test
-
-  The argument t makes the program execute the function.
