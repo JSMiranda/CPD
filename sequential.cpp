@@ -63,8 +63,8 @@ void lcs_length() {
 		lcs_matrix[i][0] = 0;
     }
 
-    for(i = 1 ; i < sequenceSize1 ; i++) {
-		for(j = 1 ; j < sequenceSize2 ; j++) {
+    for(i = 1 ; i < sequenceSize1 + 1 ; i++) {
+		for(j = 1 ; j < sequenceSize2 + 1 ; j++) {
 		    if (sequence1.at(i-1) == sequence2.at(j-1)) {
 		        lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + 1; // FIXME: cost(x)
 		    } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
@@ -85,7 +85,7 @@ void print_lcs() {
 		}
 		printf("\n");
 	}*/
-	printf("Size: %d\n", lcs_matrix[sequenceSize1-1][sequenceSize2-1]);
+	printf("Size: %d\n", lcs_matrix[sequenceSize1][sequenceSize2]);
 	// TODO: Print the sequence itself
 }
 
