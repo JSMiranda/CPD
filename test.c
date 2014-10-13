@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <omp.h>
 
-#define ENDOFLOOP 100000
+#define ENDOFLOOP 2000000
 #define TRUE 1
 #define FALSE 0
 

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <stdlib.h>
 
 std::string sequence1, sequence2;
 int sequenceSize1, sequenceSize2;
@@ -41,28 +42,51 @@ void printTest() {
     std::cout << "Second Sequence:" << sequence2 << "\n\n";
 }
 
-void lcs-length() {
-    //sequenceSize1;
-    //sequenceSize2;
-    //sequence1;
-    //sequence2;
+/*
+ * Computes the lcs matrix
+ */
+void lcs_length() {
     int i, j;
     
-    b = malloc(sequenceSize2 * sizeof(int));
-    for(i = 0; i < sequenceSize2 ; i++) {
-        b[i] = malloc(sequenceSize1 * sizeof(int));
+    lcs_matrix = (int**) malloc((sequenceSize1+1) * sizeof(int*));
+    for(i = 0; i < sequenceSize1 + 1 ; i++) {
+        lcs_matrix[i] = (int*) malloc((sequenceSize2+1) * sizeof(int));
     }
 
-/*    
-    first line and row = 0
-    for each square (i,j)
-        if xi == yi
-            c[i][j] = c[i-1][j-1] + 1; // FIXME: cost(x)
-        else if c[i-1][j] >= c[i][j-1]
-            c[i][j] = c[i-1][j];
-        else
-            c[i][j] = c[i][j-1];
-  */  
+	// first raw = 0
+	for(i = 0; i < sequenceSize2 + 1; i++) {
+		lcs_matrix[0][i] = 0;
+    }
+
+	// first collumn = 0
+	for(i = 0; i < sequenceSize1 + 1; i++) {
+		lcs_matrix[i][0] = 0;
+    }
+
+    for(i = 1 ; i < sequenceSize1 ; i++) {
+		for(j = 1 ; j < sequenceSize2 ; j++) {
+		    if (sequence1.at(i-1) == sequence2.at(j-1)) {
+		        lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + 1; // FIXME: cost(x)
+		    } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
+		        lcs_matrix[i][j] = lcs_matrix[i-1][j];
+			} else {
+		        lcs_matrix[i][j] = lcs_matrix[i][j-1];
+			}
+		}
+	}
+  
+}
+
+void print_lcs() {
+	int i, j;
+	/*for(i = 0 ; i < sequenceSize1 ; i++) {
+		for(j = 0 ; j < sequenceSize2 ; j++) {
+			printf("%d  ", lcs_matrix[i][j]);
+		}
+		printf("\n");
+	}*/
+	printf("Size: %d\n", lcs_matrix[sequenceSize1-1][sequenceSize2-1]);
+	// TODO: Print the sequence itself
 }
 
 int main(int argc, char *argv[])
@@ -70,6 +94,8 @@ int main(int argc, char *argv[])
  
         readFile(argc, argv); 
         printTest();
+		lcs_length();
+		print_lcs();
  
         return 0;
 }
