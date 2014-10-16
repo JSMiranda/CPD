@@ -3,10 +3,19 @@
 #include <string>
 #include <stdlib.h>
 #include <stack>
+#include <math.h>
 
 std::string sequence1, sequence2;
 int sequenceSize1, sequenceSize2;
 int **lcs_matrix;
+
+short cost(int x){
+   int i, n_iter = 20;
+   double dcost = 0;
+   for(i = 0; i < n_iter; i++)
+      dcost += pow(sin((double) x),2) + pow(cos((double) x),2);
+   return (short) (dcost / n_iter + 0.1);
+}
 
 void readFile(int argc, char *argv[]) {
         /** Initializations **/
@@ -67,7 +76,7 @@ void lcs_length() {
     for(i = 1 ; i < sequenceSize1 + 1 ; i++) {
 		for(j = 1 ; j < sequenceSize2 + 1 ; j++) {
 		    if (sequence1.at(i-1) == sequence2.at(j-1)) {
-		        lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + 1; // FIXME: cost(x)
+                lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + cost(1);
 		    } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
 		        lcs_matrix[i][j] = lcs_matrix[i-1][j];
 			} else {
@@ -77,6 +86,8 @@ void lcs_length() {
 	}
   
 }
+
+
 
 void print_lcs() {
 	int i, j;
@@ -118,12 +129,12 @@ void print_lcs() {
 
 }
 
+
+
 int main(int argc, char *argv[])
 {
-
-        readFile(argc, argv); 
+    readFile(argc, argv);
 	lcs_length();
 	print_lcs();
- 
-        return 0;
+    return 0;
 }
