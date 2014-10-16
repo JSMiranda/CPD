@@ -86,7 +86,7 @@ void print_lcs() {
 		}
 		printf("\n");
     }*/
-	printf("Size: %d\n", lcs_matrix[sequenceSize1][sequenceSize2]);
+	printf("%d\n", lcs_matrix[sequenceSize1][sequenceSize2]);
 
 
     // Print the sequence itself
@@ -100,20 +100,17 @@ void print_lcs() {
             subsequence.push(sequence1.at(i-1));        // saves the matching char in a stack
             i--;    // move diagonally
             j--;
-        } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
-            i--;    // move right
-        } else {
+        } else if (lcs_matrix[i-1][j] <= lcs_matrix[i][j-1]) {
             j--;    // move left
+        } else {
+            i--;    // move up
         }
     }
 
     // print stack
-
-    std::cout << "Subsquence:";
-
     while( !subsequence.empty() )
     {
-       std::cout << ' ' << subsequence.top();
+       std::cout << subsequence.top();
        subsequence.pop();
     }
 
@@ -125,9 +122,8 @@ int main(int argc, char *argv[])
 {
 
         readFile(argc, argv); 
-        printTest();
-		lcs_length();
-		print_lcs();
+	lcs_length();
+	print_lcs();
  
         return 0;
 }
