@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stack>
 #include <math.h>
+#include <omp.h>
+#include <unistd.h>
 
 std::string sequence1, sequence2;
 int sequenceSize1, sequenceSize2;
@@ -62,6 +64,11 @@ void lcs_length() {
     for(i = 0; i < sequenceSize1 + 1 ; i++) {
         lcs_matrix[i] = (int*) malloc((sequenceSize2+1) * sizeof(int));
     }
+    int *validator = (int*) malloc((sequenceSize1+1) * sizeof(int));
+    validator[0] = sequenceSize2+1;
+    for(i = 1 ; i < sequenceSize1 + 1 ; i++) {
+       validator[i] = 1;
+    }
 
     // first row = 0
 	for(i = 0; i < sequenceSize2 + 1; i++) {
@@ -73,8 +80,24 @@ void lcs_length() {
 		lcs_matrix[i][0] = 0;
     }
 
+    for(i = 1 ; i < 4 ; i++) {
+		for(j = 1 ; j <= 100*i ; j++) {
+		    if (sequence1.at(i-1) == sequence2.at(j-1)) {
+                lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + 1;
+		    } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
+		        lcs_matrix[i][j] = lcs_matrix[i-1][j];
+			} else {
+		        lcs_matrix[i][j] = lcs_matrix[i][j-1];
+			}
+            validator[i]++;
+		}
+	}
+
+    #pragma omp parallel for private(j) schedule(static,1)
     for(i = 1 ; i < sequenceSize1 + 1 ; i++) {
-		for(j = 1 ; j < sequenceSize2 + 1 ; j++) {
+		for(j = validator[i] ; j < sequenceSize2 + 1 ; j++) {
+            while (validator[i] >= validator[i-1])
+                ;
 		    if (sequence1.at(i-1) == sequence2.at(j-1)) {
                 lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + cost(i);
 		    } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
@@ -82,6 +105,7 @@ void lcs_length() {
 			} else {
 		        lcs_matrix[i][j] = lcs_matrix[i][j-1];
 			}
+            validator[i]++;
 		}
 	}
   
