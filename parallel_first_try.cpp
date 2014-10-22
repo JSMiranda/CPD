@@ -80,19 +80,6 @@ void lcs_length() {
 		lcs_matrix[i][0] = 0;
     }
 
-    for(i = 1 ; i < 4 ; i++) {
-		for(j = 1 ; j <= 100*i ; j++) {
-		    if (sequence1.at(i-1) == sequence2.at(j-1)) {
-                lcs_matrix[i][j] = lcs_matrix[i-1][j-1] + 1;
-		    } else if (lcs_matrix[i-1][j] >= lcs_matrix[i][j-1]) {
-		        lcs_matrix[i][j] = lcs_matrix[i-1][j];
-			} else {
-		        lcs_matrix[i][j] = lcs_matrix[i][j-1];
-			}
-            validator[i]++;
-		}
-	}
-
     #pragma omp parallel for private(j) schedule(static,1)
     for(i = 1 ; i < sequenceSize1 + 1 ; i++) {
 		for(j = validator[i] ; j < sequenceSize2 + 1 ; j++) {
