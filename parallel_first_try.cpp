@@ -144,8 +144,13 @@ void print_lcs() {
 
 int main(int argc, char *argv[])
 {
+    double start, end, time;
+    start = omp_get_wtime();
     readFile(argc, argv);
 	lcs_length();
 	print_lcs();
+    end = omp_get_wtime();
+    time = end - start;
+    printf("%f\n", time);
     return 0;
 }
