@@ -1,0 +1,90 @@
+ist169984@lab10p6:~/CPD$ ./tests.sh
+===========> Running test file public-instances/ex10.15.in
+< 0.000187
+< 0.000187
+===========> Running test file public-instances/ex150.200.in
+< 0.014528
+< 0.014707
+===========> Running test file public-instances/ex18k.17k.in
+< 133.426624
+< 132.769875
+===========> Running test file public-instances/ex3k.8k.in
+< 10.608356
+< 10.364878
+===========> Running test file public-instances/ex48k.30k.in
+< 627.090771
+< 624.484623
+
+
+
+
+
+ist169984@lab10p6:~/CPD$ ./tests.sh
+===========> Running test file public-instances/ex10.15.in
+< 0.000302
+< 0.000288
+===========> Running test file public-instances/ex150.200.in
+< 0.004468
+< 0.004440
+===========> Running test file public-instances/ex18k.17k.in
+< 38.994823
+< 42.682740
+===========> Running test file public-instances/ex3k.8k.in
+< 3.091664
+< 3.090211
+===========> Running test file public-instances/ex48k.30k.in
+< 190.730690
+< 190.722060
+
+
+
+
+
+
+
+ist169984@lab10p6:~/CPD$ ./tests.sh
+===========> Running test file public-instances/ex10.15.in
+< 0.000299
+< 0.000297
+===========> Running test file public-instances/ex150.200.in
+< 0.004987
+< 0.004558
+===========> Running test file public-instances/ex18k.17k.in
+< 41.859607
+< 39.814703
+===========> Running test file public-instances/ex3k.8k.in
+< 3.134904
+< 3.132537
+===========> Running test file public-instances/ex48k.30k.in
+< 192.054015
+< 193.305919
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Overheads wrt. whole program:
+          Total        Ovhds (%)  =   Synch  (%)  +  Imbal   (%)  +   Limpar (%)   +    Mgmt (%)
+R00001    12.98     0.01 ( 0.09)    0.00 ( 0.00)    0.01 ( 0.08)    0.00 ( 0.00)    0.00 ( 0.01)
+   SUM    12.98     0.01 ( 0.09)    0.00 ( 0.00)    0.01 ( 0.08)    0.00 ( 0.00)    0.00 ( 0.01)
+
+
+
+
+
+
+Overheads wrt. whole program:
+          Total        Ovhds (%)  =   Synch  (%)  +  Imbal   (%)  +   Limpar (%)   +    Mgmt (%)
+R00001    12.66     0.12 ( 0.93)    0.01 ( 0.10)    0.10 ( 0.77)    0.00 ( 0.00)    0.01 ( 0.06)
+   SUM    12.66     0.12 ( 0.93)    0.01 ( 0.10)    0.10 ( 0.77)    0.00 ( 0.00)    0.01 ( 0.06)

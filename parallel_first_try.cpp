@@ -151,6 +151,6 @@ int main(int argc, char *argv[])
 	print_lcs();
     end = omp_get_wtime();
     time = end - start;
-    printf("%f\n", time);
+    //printf("%f\n", time);
     return 0;
 }
