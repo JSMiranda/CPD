@@ -67,7 +67,10 @@ int main (int argc, char *argv[]) {
 	}
 	
 	MPI_Bcast(&nCols, 1, MPI_INT, 1, MPI_COMM_WORLD);
+    MPI_Bcast(&nRows, 1, MPI_INT, 1, MPI_COMM_WORLD);
     MPI_Bcast(&chunkLenght, 1, MPI_INT, 1, MPI_COMM_WORLD);
+    MPI_Bcast(&chunksPerRow, 1, MPI_INT, 1, MPI_COMM_WORLD);
+    MPI_Bcast(&chunksPerCol, 1, MPI_INT, 1, MPI_COMM_WORLD);
     MPI_Bcast(&chunksPerProcessor, 1, MPI_INT, 1, MPI_COMM_WORLD);
 
 	MPI_Bcast(sequence1.c_str(), sequenceSize1+1, MPI_CHAR, 1, MPI_COMM_WORLD);
@@ -106,16 +109,20 @@ int main (int argc, char *argv[]) {
 	
 	MPI_Barrier (MPI_COMM_WORLD);
 	
-	// for each chunk
-		// exceto na primeira linha, recebe a ultima linha do chunk do processo anterior
+	for (int chunk = 0 ; chunk < chunksPerProcessor ; chunk++) {
+        bool isFirstLineLCSmatrix = (id == 0 && chunk < chunksPerRow); 
+		if(!isFirstLineLCSmatrix) {
+            // recebe a ultima linha do chunk do processo anterior
+        }
+
 		// Processa chunk
-		// exceto na ultima linha envia ultima linha do chunk ao processo seguinte
+
+        bool isLastLineLCSmatrix = (ultimoProcesso = chunksPerCol % p);
+        if (!isLastLineLCSmatrix) {
+		    // envia ultima linha do chunk ao processo seguinte
+        }	
+    }
 		
-		
-	/*
-	 * ultimoProcesso = chunksPerCol % p;
-	 */
-	
 	
 //	else{
 //	    MPI_Recv(&i, 1, MPI_INT, id-1, i, MPI_COMM_WORLD, &status);
