@@ -40,12 +40,6 @@ void readFile(int argc, char *argv[]) {
         file.close();    
 }
 
-void lcs_process_chunk(int processID, int chunkID) {
-    // TODO: Implement this routine
-    for(i = 0; i < chunkLenght ; i++) {
-	}
-}
-
 int main (int argc, char *argv[]) {
 
     MPI_Status status;
@@ -93,42 +87,80 @@ int main (int argc, char *argv[]) {
 		chunkReceiver[chunk] = &receiver_array[chunk*chunkLenght];
 	}
 	
-	// first row = 0
-	if(id == 0) {
-		for(chunk = 0; chunk < chunksPerRow; chunk++) {
-			for(i = 0; i < chunkLenght; i++) {
-				chunkArray[chunk][0][i] = 0;
-			}
-		}
-	}
-
-    // first column = 0
-	for(chunk = 0; chunk < chunksPerProcessor; chunk += chunksPerRow) {
-		for(i = 0; i < chunkLenght; i++) {
-			chunkArray[chunk][i][0] = 0;
-		}
-	}
-	
 	MPI_Barrier (MPI_COMM_WORLD);
 	
 	for (int chunk = 0 ; chunk < chunksPerProcessor ; chunk++) {
         bool isFirstLineLCSmatrix = (id == 0 && chunk < chunksPerRow); 
 		if(!isFirstLineLCSmatrix) {
-            // recebe a ultima linha do chunk do processo anterior
+            // TODO: recebe a ultima linha do chunk do processo anterior
         }
+		
+		// para processar i = 0
+        // se for a primeira linha da matriz LCS final, são zeros
+		if(id == 0 && chunk < chunksPerRow) {
+			for(int j = 0 ; j < chunkLenght) {
+				chunkArray[chunk][0][j] = 0;
+			}
+        // se for outra, utilizar o receiverArray
+		} else {
+			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < rows ; j++) {
+				if (sequence1.at(0+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+				    chunkArray[chunk][0][j] = receiverArray[chunk][j-1] + cost(j);
+				} else if (receiverArray[chunk][j] >= chunkArray[chunk][0][j-1]) {
+					chunkArray[chunk][0][j] = receiverArray[chunk][j];
+				} else {
+					chunkArray[chunk][0][j] = chunkArray[chunk][0][j-1];
+				}
+			}
+		}
 
-		lcs_process_chunk(id, chunk);
+		// para processar j = 0
+        // se for a primeira coluna da matriz LCS final, são zeros
+        if(chunk%chunksPerRow == 0) {
+			for(int i = 0; i < chunkLenght; i++) {
+				chunkArray[chunk][i][0] = 0;
+			}
+        } else {
+        // se for outra, utilizar o chunkAnterior
+			for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < cols ; i++) {
+				if (sequence1.at(i+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+			        chunkArray[chunkID][i][0] = chunkArray[chunk-1][i-1][chunkSize-1] + cost(i);
+				} else if (chunkArray[chunkID][i-1][0] >= chunkArray[chunk-1][i][chunkSize-1]) {
+					chunkArray[chunkID][i][0] = chunkArray[chunk][i-1][0];
+				} else {
+					chunkArray[chunkID][i][0] = chunkArray[chunk-1][i][chunkSize-1];
+				}
+			}
+		}
+
+        // caso especial entre os especiais: i=0 && j=0
+		if (sequence1.at(0+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+		    chunkArray[chunk][0][0] = receiverArray[chunk-1][chunkSize-1] + cost(chunk);
+		} else if (receiverArray[chunk][j] >= chunkArray[chunk-1][0][chunkSize-1]) {
+			chunkArray[chunk][0][0] = receiverArray[chunk][j];
+		} else {
+			chunkArray[chunk][0][0] = chunkArray[chunk-1][0][chunkSize-1];
+		}
+
+		// Restantes casos	
+		for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < cols ; i++) {
+			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < rows ; j++) {
+				if (sequence1.at(i+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+		            chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j-1] + cost(i);
+				} else if (chunkArray[chunk][i-1][j] >= chunkArray[chunk][i][j-1]) {
+				    chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j];
+				} else {
+				    chunkArray[chunk][i][j] = chunkArray[chunk][i][j-1];
+				}
+			}
+		}
+
 
         bool isLastLineLCSmatrix = (ultimoProcesso = chunksPerCol % p);
         if (!isLastLineLCSmatrix) {
 		    // envia ultima linha do chunk ao processo seguinte
         }	
     }
-		
-	
-//	    MPI_Recv(&i, 1, MPI_INT, id-1, i, MPI_COMM_WORLD, &status);
-//	    MPI_Send(&i, 1, MPI_INT, (id+1)%p, i, MPI_COMM_WORLD);
-
 
     MPI_Barrier (MPI_COMM_WORLD);
     secs += MPI_Wtime();
