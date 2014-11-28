@@ -54,7 +54,7 @@ int main (int argc, char *argv[]) {
 	MPI_Request req;
     int id, p, nRows, nCols, chunkLenght, chunksPerRow, chunksPerCol, chunksPerProcessor;
     double secs;
-	char* cstr1, cstr2;
+	char* cstr1, *cstr2;
 
     MPI_Init(&argc, &argv);
 
@@ -66,16 +66,16 @@ int main (int argc, char *argv[]) {
 
 	if(id == 0){
 		readFile(argc, argv);
-		cstr1 = (char *) malloc(sequence1.size()*sizeof(char));
-		std::strcpy(cstr1, sequence1.c_str());
-		cstr2 = (char *) malloc(sequence2.size()*sizeof(char));
-		std::strcpy(cstr2, sequence2.c_str());
 		nRows = sequenceSize1+1;
 		nCols = sequenceSize2+1;
 	}
 	
 	MPI_Bcast(&nCols, 1, MPI_INT, 1, MPI_COMM_WORLD);
     MPI_Bcast(&nRows, 1, MPI_INT, 1, MPI_COMM_WORLD);
+	cstr1 = (char *) malloc(nRows*sizeof(char));
+	strcpy(cstr1, sequence1.c_str());
+	cstr2 = (char *) malloc(nCols*sizeof(char));
+	strcpy(cstr2, sequence2.c_str());
 	MPI_Bcast((char *) sequence1.c_str(), sequenceSize1+1, MPI_CHAR, 1, MPI_COMM_WORLD);
 	MPI_Bcast((char *) sequence2.c_str(), sequenceSize2+1, MPI_CHAR, 1, MPI_COMM_WORLD);
 	
@@ -117,7 +117,7 @@ int main (int argc, char *argv[]) {
         // se for outra, utilizar o chunkReceiver
 		} else {
 			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-				if (sequence1.at(0+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+				if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
 				    chunkArray[chunk][0][j] = chunkReceiver[chunk][j-1] + cost(j);
 				} else if (chunkReceiver[chunk][j] >= chunkArray[chunk][0][j-1]) {
 					chunkArray[chunk][0][j] = chunkReceiver[chunk][j];
@@ -136,7 +136,7 @@ int main (int argc, char *argv[]) {
         } else {
         // se for outra, utilizar o chunkAnterior
 			for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
-				if (sequence1.at(i+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
 			        chunkArray[chunk][i][0] = chunkArray[chunk-1][i-1][chunkLenght-1] + cost(i);
 				} else if (chunkArray[chunk][i-1][0] >= chunkArray[chunk-1][i][chunkLenght-1]) {
 					chunkArray[chunk][i][0] = chunkArray[chunk][i-1][0];
@@ -147,7 +147,7 @@ int main (int argc, char *argv[]) {
 		}
 
         // caso especial entre os especiais: i=0 && j=0
-		if (sequence1.at(0+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+		if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
 		    chunkArray[chunk][0][0] = chunkReceiver[chunk-1][chunkLenght-1] + cost(chunk);
 		} else if (chunkReceiver[chunk][0] >= chunkArray[chunk-1][0][chunkLenght-1]) {
 			chunkArray[chunk][0][0] = chunkReceiver[chunk][0];
@@ -158,7 +158,7 @@ int main (int argc, char *argv[]) {
 		// Restantes casos	
 		for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
 			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-				if (sequence1.at(i+chunk*chunkLenght-1) == sequence2.at(id + p*floor(chunk / chunksPerRow))) {
+				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
 		            chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j-1] + cost(i);
 				} else if (chunkArray[chunk][i-1][j] >= chunkArray[chunk][i][j-1]) {
 				    chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j];
@@ -181,7 +181,7 @@ int main (int argc, char *argv[]) {
     if(id == 0){
        printf("Processes = %d, Time = %12.6f sec,\n", p, secs);
 	   printf("%d\n", chunksPerProcessor);
-		std::cout << "(P0)" << "String1: " << sequence1 << std::endl;
+		printf("(p0) String1: %s\n", cstr1);
 	   for (int chunk = 0 ; chunk < chunksPerProcessor ; chunk++) {
 		   for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
 				for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
@@ -191,7 +191,7 @@ int main (int argc, char *argv[]) {
 			}
 		}
     } else {
-		std::cout << "String1: " << sequence1 << std::endl;
+		printf("String1: %s\n", cstr1);
 	}
     MPI_Finalize();
     return 0;
