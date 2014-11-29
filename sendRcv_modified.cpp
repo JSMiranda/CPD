@@ -1,4 +1,4 @@
-#define EFFICIENCY_FACTOR 20
+#define EFFICIENCY_FACTOR 10
 
 #include <stdio.h>
 #include <mpi.h>
@@ -89,7 +89,6 @@ int main (int argc, char *argv[]) {
 		<< "chunkPerRow: " << chunksPerRow << std::endl
 		<< "chunksPerCol: " << chunksPerCol << std::endl
 		<< "chunksPerProcessor: " << chunksPerProcessor << std::endl;
-		//return 0;
 	}
 	
 	int* array = (int *) malloc(chunksPerProcessor*chunkLenght*chunkLenght*sizeof(int));
@@ -109,27 +108,40 @@ int main (int argc, char *argv[]) {
 	}
 	
 	MPI_Barrier (MPI_COMM_WORLD);
-	//int countChunks = 0;
 	
 	for (int chunk = 0 ; chunk < chunksPerProcessor ; chunk++) {
-	    //std::cout << ++countChunks << std::endl;
-        bool isFirstLineLCSmatrix = (id == 0 && chunk < chunksPerRow); 
-		if(!isFirstLineLCSmatrix) {
-			std::cout << "(" << id << ")" << "Waiting to rcv from processor " << ((id == 0) ? (p-1) : (id - 1)) << " || Tag " << chunk%chunksPerRow << "\n";
+		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
+		const bool firstColLCSMat = (chunk%chunksPerRow == 0);
+		
+		if(!firstRowLCSMat) {
+			//std::cout << "(" << id << ")" << "Waiting to rcv from processor " << ((id == 0) ? (p-1) : (id - 1)) << " || Tag " << chunk%chunksPerRow << "\n";
             MPI_Recv(chunkReceiver[chunk], chunkLenght, MPI_INT, (id == 0) ? p-1 : id - 1, chunk%chunksPerRow, MPI_COMM_WORLD, &status);
-			//std::cout << "(" << id << ")" << "Rcv!\n";
+			//std::cout << "(" << id << ")" << "Rcv! CHUNK " << chunk << "   ";
+			//for(int i = 0 ; i < chunkLenght ; i++) {
+			//    std::cout << chunkReceiver[chunk][i] << " ";
+			//}
+			//std::cout << std::endl;
         }
 		
+		// caso especial entre os especiais: i=0 && j=0
+		if (firstRowLCSMat || firstColLCSMat) {
+		    // do nothing
+		} else if (cstr1[id*chunkLenght + p*(int) floor(chunk / chunksPerRow) - 1] == cstr2[chunk*chunkLenght - 1]) {
+		    chunkArray[chunk][0][0] = chunkReceiver[chunk-1][chunkLenght-1] + cost(chunk);
+		} else if (chunkReceiver[chunk][0] >= chunkArray[chunk-1][0][chunkLenght-1]) {
+			chunkArray[chunk][0][0] = chunkReceiver[chunk][0];
+		} else {
+			chunkArray[chunk][0][0] = chunkArray[chunk-1][0][chunkLenght-1];
+		}
+		
 		// para processar i = 0
-		const bool firstRowLCSMat = id == 0 && chunk < chunksPerRow;
 		if(firstRowLCSMat) {
 			for(int j = 0 ; j < chunkLenght ; j++) {
 				chunkArray[chunk][0][j] = 0;
 			}
-        // se for outra, utilizar o chunkReceiver
 		} else {
-			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-				if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
+			for(int j = 1; j < chunkLenght && j+chunk*chunkLenght < nCols ; j++) {
+				if (cstr1[id*chunkLenght + p*(int) floor(chunk / chunksPerRow) - 1] == cstr2[j+chunk*chunkLenght - 1]) {
 				    chunkArray[chunk][0][j] = chunkReceiver[chunk][j-1] + cost(j);
 				} else if (chunkReceiver[chunk][j] >= chunkArray[chunk][0][j-1]) {
 					chunkArray[chunk][0][j] = chunkReceiver[chunk][j];
@@ -140,15 +152,13 @@ int main (int argc, char *argv[]) {
 		}
 
 		// para processar j = 0
-		const bool firstColLCSMat = chunk%chunksPerRow == 0;
         if(firstColLCSMat) {
 			for(int i = 0; i < chunkLenght; i++) {
 				chunkArray[chunk][i][0] = 0;
 			}
         } else {
-        // se for outra, utilizar o chunkAnterior
-			for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
-				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
+			for(int i = 1; i < chunkLenght && id*chunkLenght + p*floor(chunk / chunksPerRow) + i < nRows ; i++) {
+				if (cstr1[id*chunkLenght + p*(int) floor(chunk / chunksPerRow) + i - 1] == cstr2[chunk*chunkLenght - 1]) {
 			        chunkArray[chunk][i][0] = chunkArray[chunk-1][i-1][chunkLenght-1] + cost(i);
 				} else if (chunkArray[chunk][i-1][0] >= chunkArray[chunk-1][i][chunkLenght-1]) {
 					chunkArray[chunk][i][0] = chunkArray[chunk][i-1][0];
@@ -158,26 +168,18 @@ int main (int argc, char *argv[]) {
 			}
 		}
 
-        // caso especial entre os especiais: i=0 && j=0
-		if (firstRowLCSMat || firstColLCSMat) {
-		    // do nothing
-		} else if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
-		    chunkArray[chunk][0][0] = chunkReceiver[chunk-1][chunkLenght-1] + cost(chunk);
-		} else if (chunkReceiver[chunk][0] >= chunkArray[chunk-1][0][chunkLenght-1]) {
-			chunkArray[chunk][0][0] = chunkReceiver[chunk][0];
-		} else {
-			chunkArray[chunk][0][0] = chunkArray[chunk-1][0][chunkLenght-1];
-		}
-
-		if (chunk == 41)
-			std::cout << id << "HI!\n";
-		// Restantes casos	
-		for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
-		    //std::cout << chunk << ":" << i << "   nCols:" << nCols << std::endl ;
-			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-				//std::cout << "JOTA " << chunk << ":" << j << std::endl;
-				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
+		// Restantes casos
+		for(int i = 1; i < chunkLenght && id*chunkLenght + p*floor(chunk / chunksPerRow) + i < nRows ; i++) {
+			for(int j = 1; j < chunkLenght && j+chunk*chunkLenght < nCols ; j++) {
+				if (cstr1[id*chunkLenght + p*(int) floor(chunk / chunksPerRow) + i - 1] == cstr2[j+chunk*chunkLenght - 1]) {
 		            chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j-1] + cost(i);
+					/*
+					if(id == 0 && chunk == chunksPerProcessor - 1) {
+						std::cout << "Found match at " << (id + p*(int) floor(chunk / chunksPerRow) + i) << ", " << (j+chunk*chunkLenght - 1) << " : "
+						<< cstr2[j+chunk*chunkLenght - 1] << std::endl << "Chunk " << chunk << " | i " << i << " | j " << j << " Value: " << chunkArray[chunk][i][j] << std::endl;
+					}
+					*/
+					
 				} else if (chunkArray[chunk][i-1][j] >= chunkArray[chunk][i][j-1]) {
 				    chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j];
 				} else {
@@ -185,38 +187,37 @@ int main (int argc, char *argv[]) {
 				}
 			}
 		}
+		
+		std::cout << "le test\n";
 
 
-		const bool isLastProcess = (id == chunksPerCol % p);
+		const bool isLastProcess = (id == p-1);
 		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
         const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
         if (!isLastRowLCSmatrix) {
-			std::cout << "(" << id << ")" << "Sending to processor " << (id+1)%p << " || Tag " << chunk%chunksPerRow << "\n";
-            MPI_Isend(chunkArray[chunk], chunkLenght, MPI_INT, (id+1)%p, chunk%chunksPerRow, MPI_COMM_WORLD, &req);
-        } else {
-			std::cout << "(" << id << ")" << "HI!\n";
-		}		
+			//std::cout << "(" << id << ")" << "Sending to processor " << (id+1)%p << " || Tag " << chunk%chunksPerRow << "\n";
+            MPI_Isend(chunkArray[chunk][chunkLenght-1], chunkLenght, MPI_INT, (id+1)%p, chunk%chunksPerRow, MPI_COMM_WORLD, &req);
+			//std::cout << "(" << id << ")" << "Send! CHUNK " << chunk << "   ";
+			//for(int i = 0 ; i < chunkLenght ; i++) {
+			//    std::cout << chunkArray[chunk][chunkLenght-1][i] << " ";
+			//}
+			//std::cout << std::endl;
+		}
     }
 	
-	std::cout << "Algum processo parou!\n";
+	//std::cout << "Algum processo parou!\n";
 
     MPI_Barrier (MPI_COMM_WORLD);
     secs += MPI_Wtime();
 
-    if(id == 0){
-       printf("Processes = %d, Time = %12.6f sec,\n", p, secs);
-	   printf("%d\n", chunksPerProcessor);
-		printf("(p0) String1: %s\n", cstr1);
-	   for (int chunk = 0 ; chunk < chunksPerProcessor ; chunk++) {
-		   for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
-				for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-					printf("%d ", chunkArray[chunk][i][j]);
-				}
-				printf("\n");
-			}
-			printf("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n");
-		}
+	// prints last position of LCS MATRIX
+    if(id == p-1){
+			int chunk = chunksPerProcessor-1;
+			int i = nRows - 1 - id*chunkLenght -  p*floor(chunk / chunksPerRow);
+			int j = nCols - 1 - chunk*chunkLenght;
+			printf("i: %d, j = %d, value = %d\n", i, j, chunkArray[chunk][i][j]);
 	}
+	
     MPI_Finalize();
     return 0;
 }
