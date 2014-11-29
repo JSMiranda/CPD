@@ -54,7 +54,7 @@ int main (int argc, char *argv[]) {
 	MPI_Request req;
     int id, p, nRows, nCols, chunkLenght, chunksPerRow, chunksPerCol, chunksPerProcessor;
     double secs;
-	char* cstr1, *cstr2;
+	char *cstr1, *cstr2;
 
     MPI_Init(&argc, &argv);
 
@@ -70,19 +70,27 @@ int main (int argc, char *argv[]) {
 		nCols = sequenceSize2+1;
 	}
 	
-	MPI_Bcast(&nCols, 1, MPI_INT, 1, MPI_COMM_WORLD);
-    MPI_Bcast(&nRows, 1, MPI_INT, 1, MPI_COMM_WORLD);
+	MPI_Bcast(&nCols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&nRows, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	cstr1 = (char *) malloc(nRows*sizeof(char));
 	strcpy(cstr1, sequence1.c_str());
 	cstr2 = (char *) malloc(nCols*sizeof(char));
 	strcpy(cstr2, sequence2.c_str());
-	MPI_Bcast((char *) sequence1.c_str(), sequenceSize1+1, MPI_CHAR, 1, MPI_COMM_WORLD);
-	MPI_Bcast((char *) sequence2.c_str(), sequenceSize2+1, MPI_CHAR, 1, MPI_COMM_WORLD);
+	MPI_Bcast(cstr1, nRows, MPI_CHAR, 0, MPI_COMM_WORLD);
+	MPI_Bcast(cstr2, nCols, MPI_CHAR, 0, MPI_COMM_WORLD);
 	
-	chunkLenght = floor(1.0*nCols/p/EFFICIENCY_FACTOR);
-	chunksPerRow = ceil(nCols*1.0/chunkLenght);
-	chunksPerCol = ceil(nRows*1.0/chunkLenght);
-	chunksPerProcessor = chunksPerCol/p;
+	chunkLenght = (int) floor(1.0*nCols/p/EFFICIENCY_FACTOR);
+	chunksPerRow = (int) ceil(nCols*1.0/chunkLenght);
+	chunksPerCol = (int) ceil(nRows*1.0/chunkLenght);
+	chunksPerProcessor = chunksPerRow*chunksPerCol/p;
+	
+	if(id == 0){
+		std::cout << "chunkLenght: " << chunkLenght << std::endl
+		<< "chunkPerRow: " << chunksPerRow << std::endl
+		<< "chunksPerCol: " << chunksPerCol << std::endl
+		<< "chunksPerProcessor: " << chunksPerProcessor << std::endl;
+		//return 0;
+	}
 	
 	int* array = (int *) malloc(chunksPerProcessor*chunkLenght*chunkLenght*sizeof(int));
 	int** M = (int **) malloc(chunksPerProcessor*chunkLenght*sizeof(int*)); 
@@ -101,23 +109,27 @@ int main (int argc, char *argv[]) {
 	}
 	
 	MPI_Barrier (MPI_COMM_WORLD);
+	//int countChunks = 0;
 	
 	for (int chunk = 0 ; chunk < chunksPerProcessor ; chunk++) {
+	    //std::cout << ++countChunks << std::endl;
         bool isFirstLineLCSmatrix = (id == 0 && chunk < chunksPerRow); 
 		if(!isFirstLineLCSmatrix) {
-            MPI_Recv(chunkReceiver[chunk], chunkLenght, MPI_INT, id, id*chunk, MPI_COMM_WORLD, &status);
+			std::cout << "(" << id << ")" << "Waiting to rcv from processor " << ((id == 0) ? (p-1) : (id - 1)) << " || Tag " << chunk%chunksPerRow << "\n";
+            MPI_Recv(chunkReceiver[chunk], chunkLenght, MPI_INT, (id == 0) ? p-1 : id - 1, chunk%chunksPerRow, MPI_COMM_WORLD, &status);
+			//std::cout << "(" << id << ")" << "Rcv!\n";
         }
 		
 		// para processar i = 0
-        // se for a primeira linha da matriz LCS final, são zeros
-		if(id == 0 && chunk < chunksPerRow) {
+		const bool firstRowLCSMat = id == 0 && chunk < chunksPerRow;
+		if(firstRowLCSMat) {
 			for(int j = 0 ; j < chunkLenght ; j++) {
 				chunkArray[chunk][0][j] = 0;
 			}
         // se for outra, utilizar o chunkReceiver
 		} else {
 			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-				if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
+				if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
 				    chunkArray[chunk][0][j] = chunkReceiver[chunk][j-1] + cost(j);
 				} else if (chunkReceiver[chunk][j] >= chunkArray[chunk][0][j-1]) {
 					chunkArray[chunk][0][j] = chunkReceiver[chunk][j];
@@ -128,15 +140,15 @@ int main (int argc, char *argv[]) {
 		}
 
 		// para processar j = 0
-        // se for a primeira coluna da matriz LCS final, são zeros
-        if(chunk%chunksPerRow == 0) {
+		const bool firstColLCSMat = chunk%chunksPerRow == 0;
+        if(firstColLCSMat) {
 			for(int i = 0; i < chunkLenght; i++) {
 				chunkArray[chunk][i][0] = 0;
 			}
         } else {
         // se for outra, utilizar o chunkAnterior
 			for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
-				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
+				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
 			        chunkArray[chunk][i][0] = chunkArray[chunk-1][i-1][chunkLenght-1] + cost(i);
 				} else if (chunkArray[chunk][i-1][0] >= chunkArray[chunk-1][i][chunkLenght-1]) {
 					chunkArray[chunk][i][0] = chunkArray[chunk][i-1][0];
@@ -147,7 +159,9 @@ int main (int argc, char *argv[]) {
 		}
 
         // caso especial entre os especiais: i=0 && j=0
-		if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
+		if (firstRowLCSMat || firstColLCSMat) {
+		    // do nothing
+		} else if (cstr1[0+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
 		    chunkArray[chunk][0][0] = chunkReceiver[chunk-1][chunkLenght-1] + cost(chunk);
 		} else if (chunkReceiver[chunk][0] >= chunkArray[chunk-1][0][chunkLenght-1]) {
 			chunkArray[chunk][0][0] = chunkReceiver[chunk][0];
@@ -155,10 +169,14 @@ int main (int argc, char *argv[]) {
 			chunkArray[chunk][0][0] = chunkArray[chunk-1][0][chunkLenght-1];
 		}
 
+		if (chunk == 41)
+			std::cout << id << "HI!\n";
 		// Restantes casos	
 		for(int i = 1; i < chunkLenght && i+chunk*chunkLenght-1 < nCols ; i++) {
+		    //std::cout << chunk << ":" << i << "   nCols:" << nCols << std::endl ;
 			for(int j = 1; j < chunkLenght && id + p*floor(chunk / chunksPerRow) < nRows ; j++) {
-				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*floor(chunk / chunksPerRow)]) {
+				//std::cout << "JOTA " << chunk << ":" << j << std::endl;
+				if (cstr1[i+chunk*chunkLenght-1] == cstr2[id + p*(int) floor(chunk / chunksPerRow)]) {
 		            chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j-1] + cost(i);
 				} else if (chunkArray[chunk][i-1][j] >= chunkArray[chunk][i][j-1]) {
 				    chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j];
@@ -169,11 +187,18 @@ int main (int argc, char *argv[]) {
 		}
 
 
-        bool isLastLineLCSmatrix = chunksPerCol % p;
-        if (!isLastLineLCSmatrix) {
-            MPI_Isend(chunkArray[chunk], chunkLenght, MPI_INT, (id+1)%p, ((id+1)%p)*chunk, MPI_COMM_WORLD, &req);
-        }	
+		const bool isLastProcess = (id == chunksPerCol % p);
+		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
+        const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
+        if (!isLastRowLCSmatrix) {
+			std::cout << "(" << id << ")" << "Sending to processor " << (id+1)%p << " || Tag " << chunk%chunksPerRow << "\n";
+            MPI_Isend(chunkArray[chunk], chunkLenght, MPI_INT, (id+1)%p, chunk%chunksPerRow, MPI_COMM_WORLD, &req);
+        } else {
+			std::cout << "(" << id << ")" << "HI!\n";
+		}		
     }
+	
+	std::cout << "Algum processo parou!\n";
 
     MPI_Barrier (MPI_COMM_WORLD);
     secs += MPI_Wtime();
@@ -189,9 +214,8 @@ int main (int argc, char *argv[]) {
 				}
 				printf("\n");
 			}
+			printf("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n");
 		}
-    } else {
-		printf("String1: %s\n", cstr1);
 	}
     MPI_Finalize();
     return 0;
