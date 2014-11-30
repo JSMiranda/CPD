@@ -237,11 +237,12 @@ void printLCS() {
 		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
 		const bool firstColLCSMat = (chunk%chunksPerRow == 0);
 		if(firstRowLCSMat || firstColLCSMat) {
-			MPI_Cancel(&req1);
-			MPI_Cancel(&req2);
-			MPI_Cancel(&req3);
-			MPI_Cancel(&req4);
-			MPI_Cancel(&req5);
+			//MPI_Cancel(&req1);
+			//MPI_Cancel(&req2);
+			//MPI_Cancel(&req3);
+			//MPI_Cancel(&req4);
+			//MPI_Cancel(&req5);
+			printf("Current size: %d\n", currentSize);
 			while(currentSize > 0) {
 				printf("%c", result[(--currentSize)-1]);
 			}
