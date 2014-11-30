@@ -187,112 +187,117 @@ void printLCS() {
 	int currentSize = 0;
 	
 	const bool isLastProcess = (id == (chunksPerCol%p - 1 + p)%p);
+	const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
+    const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
 	const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
 	const bool firstColLCSMat = (chunk%chunksPerRow == 0);
 	
 	MPI_Request req1, req2, req3, req4;
 	
-	
-	if(!isLastProcess) {
-		printf("Waiting for receive\n");
-		MPI_Irecv(&i, 1, MPI_INT, (id+1)%p, 0, MPI_COMM_WORLD, &req1);
-		MPI_Irecv(&j, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req2);
-		MPI_Irecv(&currentSize, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req4);
-		MPI_Irecv(result, currentSize, MPI_CHAR, (id+1)%p, 2, MPI_COMM_WORLD, &req3);
-		
-		MPI_Wait(&req1, &status);
-		MPI_Wait(&req2, &status);
-		MPI_Wait(&req4, &status);
-		MPI_Wait(&req3, &status);
-		printf("FREEEEEEEEEEEEE\n");
-	} else {
-		i = nRows - getLCSrow(chunksPerProcessor-1, 0) - 1;
-		j = nCols - 1 - (chunksPerRow-1)*chunkLenght;
-		printf("%d\n", chunkArray[chunk][i][j]);
+	if(isLastProcess) {
+		printf("%d\n", chunkArray[chunk][nRows - getLCSrow(chunksPerProcessor-1, 0) - 1][nCols - 1 - (chunksPerRow-1)*chunkLenght]);
 	}
 	
-	dinossauro:
-	while( i >= 1 && j >= 1 ){            
-        if (cstr1[i-1] == cstr2[j-1]){
-            result[currentSize] = cstr1[i-1];
-            i--;
-            j--;
-			currentSize++;
-        } else if (chunkArray[chunk][i-1][j] <= chunkArray[chunk][i][j-1]) {
-            j--;
-        } else {
-            i--;
-        }
-    }
+	while(true) {
 	
-	if(firstRowLCSMat || firstColLCSMat) {
-		MPI_Cancel(&req1);
-		MPI_Cancel(&req2);
-		MPI_Cancel(&req3);
-		while(currentSize >= 0) {
-			printf("%c", result[--currentSize]);
+		if(!isLastRowOfChunks) {
+			printf("Waiting for receive\n");
+			MPI_Irecv(&i, 1, MPI_INT, (id+1)%p, 0, MPI_COMM_WORLD, &req1);
+			MPI_Irecv(&j, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req2);
+			MPI_Irecv(&currentSize, 1, MPI_INT, (id+1)%p, 3, MPI_COMM_WORLD, &req4);
+			MPI_Irecv(result, currentSize, MPI_CHAR, (id+1)%p, 2, MPI_COMM_WORLD, &req3);
+			
+			MPI_Wait(&req1, &status);
+			MPI_Wait(&req2, &status);
+			MPI_Wait(&req4, &status);
+			MPI_Wait(&req3, &status);
+			printf("FREEEEEEEEEEEEE\n");
+		} else {
+			i = nRows - getLCSrow(chunksPerProcessor-1, 0) - 1;
+			j = nCols - 1 - (chunksPerRow-1)*chunkLenght;
 		}
-		printf("\n");
-		return;
-	} else if(i == 0 && j == 0) {
-		//printf("i = 0 - j = 0\n");
-		if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
-            result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
-            i=chunkLenght-1;
-            j=chunkLenght-1;
-			chunk-=1;
-			currentSize++;
-			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
-			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
-			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req4);
-			MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-        } else if (chunkReceiver[chunk][j] <= chunkArray[chunk-1][i][chunkLenght-1]) {
-            j=chunkLenght-1;
-			chunk-=1;
-        } else {
-            i=chunkLenght-1;
-			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
-			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
-			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req4);
-			MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-        }
-	} else if(i == 0 && j != 0) {
-		//printf("i = 0 - j != 0\n");
-		if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
-            result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
-            i=chunkLenght-1;
-            j--;
-			currentSize++;
-			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
-			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
-			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req4);
-			MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-        } else if (chunkReceiver[chunk][j] <= chunkArray[chunk][i][j-1]) {
-            j--;
-        } else {
-            i=chunkLenght-1;
-			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
-			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
-			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req4);
-			MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-        }
-	} else if(i != 0 && j == 0) {
-		//printf("i != 0 - j = 0\n");
-		if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
-            result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
-            i--;
-            j=chunkLenght-1;
-			chunk-=1;
-			currentSize++;
-        } else if (chunkArray[chunk][i-1][j] <= chunkArray[chunk-1][i][chunkLenght-1]) {
-            j=chunkLenght-1;
-			chunk-=1;
-        } else {
-            i--;
-        }
-	}
 	
-	goto dinossauro;
+		while( i >= 1 && j >= 1 ){            
+			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
+				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
+				i--;
+				j--;
+				//printf("+1 - row:%d - col:%d\n", getLCSrow(chunk,i)-1, j+(chunk%chunksPerRow)*chunkLenght-1);
+				currentSize++;
+			} else if (chunkArray[chunk][i-1][j] <= chunkArray[chunk][i][j-1]) {
+				j--;
+			} else {
+				i--;
+			}
+		}
+		
+		if(firstRowLCSMat || firstColLCSMat) {
+			MPI_Cancel(&req1);
+			MPI_Cancel(&req2);
+			MPI_Cancel(&req3);
+			while(currentSize >= 0) {
+				printf("%c", result[--currentSize]);
+			}
+			printf("\n");
+			return;
+		} else if(i == 0 && j == 0) {
+			//printf("i = 0 - j = 0\n");
+			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
+				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
+				i=chunkLenght-1;
+				j=chunkLenght-1;
+				chunk-=1;
+				currentSize++;
+				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
+				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
+				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
+				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+			} else if (chunkReceiver[chunk][j] <= chunkArray[chunk-1][i][chunkLenght-1]) {
+				j=chunkLenght-1;
+				chunk-=1;
+			} else {
+				i=chunkLenght-1;
+				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
+				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
+				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
+				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+			}
+		} else if(i == 0 && j != 0) {
+			//printf("i = 0 - j != 0\n");
+			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
+				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
+				i=chunkLenght-1;
+				j--;
+				currentSize++;
+				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
+				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
+				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
+				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+			} else if (chunkReceiver[chunk][j] <= chunkArray[chunk][i][j-1]) {
+				j--;
+			} else {
+				i=chunkLenght-1;
+				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
+				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
+				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
+				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+			}
+		} else if(i != 0 && j == 0) {
+			//printf("i != 0 - j = 0\n");
+			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
+				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
+				i--;
+				j=chunkLenght-1;
+				chunk-=1;
+				currentSize++;
+			} else if (chunkArray[chunk][i-1][j] <= chunkArray[chunk-1][i][chunkLenght-1]) {
+				j=chunkLenght-1;
+				chunk-=1;
+			} else {
+				i--;
+			}
+		}
+	}
 
 }
 
