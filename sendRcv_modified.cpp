@@ -402,8 +402,8 @@ int main (int argc, char *argv[]) {
     MPI_Barrier (MPI_COMM_WORLD);
 	printLCS();
     secs += MPI_Wtime();
-
-	printf("Tempo: %d", secs);
+	
+	printf("Tempo: %f\n", secs);
 	
     MPI_Finalize();
     return 0;
