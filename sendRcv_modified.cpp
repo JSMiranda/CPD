@@ -100,7 +100,6 @@ void processChunks() {
 			
 				/////////////////////
 				if ( j+(chunk%chunksPerRow)*chunkLenght >= nCols) {
-					printf("Bound test failed with chunk %d , i %d, j %d\n", chunk, 0, j);
 					}
 				/////////////////////
 			
@@ -125,7 +124,6 @@ void processChunks() {
 			
 			/////////////////////
 				if ( getLCSrow(chunk, i) >= nRows ) {
-					printf("Bound test failed with chunk %d , i %d, j %d\n", chunk, i, 0);
 					}
 				/////////////////////
 			
@@ -188,20 +186,21 @@ void printLCS() {
 	
 	MPI_Request req1, req2, req3, req4, req5;
 	const bool isLastProcess = (id == (chunksPerCol%p - 1 + p)%p);
+	bool chunkRowBeeingProcessed = false;
+	
 	if(isLastProcess) {
 		printf("%d\n", chunkArray[chunk][nRows - getLCSrow(chunksPerProcessor-1, 0) - 1][nCols - 1 - (chunksPerRow-1)*chunkLenght]);
 		i = nRows - getLCSrow(chunksPerProcessor-1, 0) - 1;
 		j = nCols - 1 - (chunksPerRow-1)*chunkLenght;
-	} else {
-		chunk = -1;
+		chunkRowBeeingProcessed = true;
 	}
 	
-	bool chunkRowBeeingProcessed = false;
-	while(true) {
+	bool jobDone = false;
+	do {
 		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
 		const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
-		if(!isLastRowLCSmatrix && !chunkRowBeeingProcessed) {
-			printf("Waiting for receive pid = %d\n", id);
+		if(!chunkRowBeeingProcessed) {
+			printf("Waiting for receive. PID:%d\n", id);
 			MPI_Irecv(&i, 1, MPI_INT, (id+1)%p, 0, MPI_COMM_WORLD, &req1);
 			MPI_Irecv(&j, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req2);
 			MPI_Irecv(&currentSize, 1, MPI_INT, (id+1)%p, 3, MPI_COMM_WORLD, &req4);
@@ -209,24 +208,22 @@ void printLCS() {
 			MPI_Irecv(result, currentSize, MPI_CHAR, (id+1)%p, 2, MPI_COMM_WORLD, &req3);
 			MPI_Irecv(&chunk, 1, MPI_INT, (id+1)%p, 4, MPI_COMM_WORLD, &req5);
 			
+			
 			MPI_Wait(&req1, &status);
 			MPI_Wait(&req2, &status);
 			MPI_Wait(&req3, &status);
 			MPI_Wait(&req5, &status);
-			
-			printf("FREEEEEEEEEEEEE\n");
+			printf("Received. PID:%d\n", id);
+
 		}
 		
 		chunkRowBeeingProcessed = true;
 	
 		while( i >= 1 && j >= 1 ){
-			printf("i,j = %d,%d || Char1: %c || Char2: %c\n", getLCSrow(chunk,i), j+(chunk%chunksPerRow)*chunkLenght, cstr1[getLCSrow(chunk,i)-1] , cstr2[j+(chunk%chunksPerRow)*chunkLenght-1] );		
-			printf("chunk: %d || i,j: %d, %d\n", chunk, i, j);
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i--;
 				j--;
-				//printf("+1 - row:%d - col:%d\n", getLCSrow(chunk,i)-1, j+(chunk%chunksPerRow)*chunkLenght-1);
 				currentSize++;
 			} else if (chunkArray[chunk][i-1][j] <= chunkArray[chunk][i][j-1]) {
 				j--;
@@ -235,29 +232,31 @@ void printLCS() {
 			}
 		}
 		
-		printf("i,j = %d,%d || Char1: %c || Char2: %c\n", getLCSrow(chunk,i), j+(chunk%chunksPerRow)*chunkLenght, cstr1[getLCSrow(chunk,i)-1] , cstr2[j+(chunk%chunksPerRow)*chunkLenght-1] );		
-		printf("chunk: %d || i,j: %d, %d\n", chunk, i, j);
 		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
 		const bool firstColLCSMat = (chunk%chunksPerRow == 0 && j==0);
-		if(firstRowLCSMat || firstColLCSMat) {
-			//MPI_Cancel(&req1);
-			//MPI_Cancel(&req2);
-			//MPI_Cancel(&req3);
-			//MPI_Cancel(&req4);
-			//MPI_Cancel(&req5);
-			printf("Current size: %d\n", currentSize);
+		if(id == 0 && (firstRowLCSMat || firstColLCSMat)) {
+			printf("CurrentSize: %d\n", currentSize);
 			while(currentSize >= 0) {
 				printf("%c", result[--currentSize]);
 			}
 			printf("\n");
 			return;
+		} else if(firstRowLCSMat || firstColLCSMat) {
+			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
+			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
+			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
+			MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+			MPI_Isend(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD, &req5);
+			jobDone=true;
 		} else if(i == 0 && j == 0) {
-			//printf("i = 0 - j = 0\n");
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i=chunkLenght-1;
 				j=chunkLenght-1;
 				chunk--;
+				if(chunk < chunksPerRow) {
+					jobDone=true;
+				}
 				if(id == 0)
 					chunk -= chunksPerRow;
 				currentSize++;
@@ -265,56 +264,59 @@ void printLCS() {
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				MPI_Isend(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD, &req5);
 				chunkRowBeeingProcessed = false;
-				chunk=-1;
 			} else if (chunkReceiver[chunk][j] <= chunkArray[chunk-1][i][chunkLenght-1]) {
 				j=chunkLenght-1;
 				chunk-=1;
 			} else {
 				i=chunkLenght-1;
+				if(chunk < chunksPerRow) {
+					jobDone=true;
+				}
 				if(id == 0)
 					chunk -= chunksPerRow;
 				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				MPI_Isend(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD, &req5);
 				chunkRowBeeingProcessed = false;
-				chunk=-1;
 			}
 		} else if(i == 0 && j != 0) {
-			//printf("i = 0 - j != 0\n");
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i=chunkLenght-1;
 				j--;
 				currentSize++;
+				if(chunk < chunksPerRow) {
+					jobDone=true;
+				}
 				if(id == 0)
 					chunk -= chunksPerRow;
 				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				MPI_Isend(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD, &req5);
 				chunkRowBeeingProcessed = false;
-				chunk=-1;
 			} else if (chunkReceiver[chunk][j] <= chunkArray[chunk][i][j-1]) {
 				j--;
 			} else {
 				i=chunkLenght-1;
+				if(chunk < chunksPerRow) {
+					jobDone=true;
+				}
 				if(id == 0)
 					chunk -= chunksPerRow;
 				MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
-				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				MPI_Isend(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD, &req5);
 				chunkRowBeeingProcessed = false;
-				chunk=-1;
 			}
 		} else if(i != 0 && j == 0) {
-			//printf("i != 0 - j = 0\n");
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i--;
@@ -328,8 +330,7 @@ void printLCS() {
 				i--;
 			}
 		}
-	}
-
+	} while(!jobDone);
 }
 
 int main (int argc, char *argv[]) {
@@ -409,7 +410,6 @@ int main (int argc, char *argv[]) {
 	//std::cout << "Algum processo parou!\n";
 
     MPI_Barrier (MPI_COMM_WORLD);
-	printf("HERE\n");
 	printLCS();
     secs += MPI_Wtime();
 
@@ -418,8 +418,6 @@ int main (int argc, char *argv[]) {
 			int chunk = chunksPerProcessor-1;
 			int i = nRows - getLCSrow(chunk, 0) - 1;
 			int h = nCols - 1 - (chunksPerRow-1)*chunkLenght;
-			printf("LCS ROW OF LAST CHUNK: %d\n", getLCSrow(chunk, 0));
-			printf("pid: %d || i: %d, j = %d, value = %d\n", id, i, h, chunkArray[chunk][i][h]);
 	}
 	
     MPI_Finalize();
