@@ -200,7 +200,6 @@ void printLCS() {
 		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
 		const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
 		if(!chunkRowBeeingProcessed) {
-			printf("Waiting for receive. PID:%d\n", id);
 			MPI_Irecv(&i, 1, MPI_INT, (id+1)%p, 0, MPI_COMM_WORLD, &req1);
 			MPI_Irecv(&j, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req2);
 			MPI_Irecv(&currentSize, 1, MPI_INT, (id+1)%p, 3, MPI_COMM_WORLD, &req4);
@@ -213,7 +212,6 @@ void printLCS() {
 			MPI_Wait(&req2, &status);
 			MPI_Wait(&req3, &status);
 			MPI_Wait(&req5, &status);
-			printf("Received. PID:%d\n", id);
 
 		}
 		
@@ -232,16 +230,15 @@ void printLCS() {
 			}
 		}
 		
-		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
+		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow && i==0);
 		const bool firstColLCSMat = (chunk%chunksPerRow == 0 && j==0);
 		if(id == 0 && (firstRowLCSMat || firstColLCSMat)) {
-			printf("CurrentSize: %d\n", currentSize);
 			while(currentSize >= 0) {
 				printf("%c", result[--currentSize]);
 			}
 			printf("\n");
 			return;
-		} else if(firstRowLCSMat || firstColLCSMat) {
+		} else if(id != 0 && (firstRowLCSMat || firstColLCSMat)) {
 			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
 			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
@@ -370,14 +367,7 @@ int main (int argc, char *argv[]) {
 	
 	chunksPerProcessor = chunkRowsPerProcessor*chunksPerRow;
 	
-	//Debug
-	if(id == 0){
-		std::cout << "chunkLenght: " << chunkLenght << std::endl
-		<< "chunkPerRow: " << chunksPerRow << std::endl
-		<< "chunksPerCol: " << chunksPerCol << std::endl
-		<< "chunksPerProcessor: " << chunksPerProcessor << std::endl;
-	}
-	
+
 	//Allocations
 	int* array = (int *) malloc(chunksPerProcessor*chunkLenght*chunkLenght*sizeof(int));
 	int** M = (int **) malloc(chunksPerProcessor*chunkLenght*sizeof(int*)); 
@@ -413,12 +403,7 @@ int main (int argc, char *argv[]) {
 	printLCS();
     secs += MPI_Wtime();
 
-	// prints last position of LCS MATRIX
-    if(id == (chunksPerCol%p - 1 + p)%p){
-			int chunk = chunksPerProcessor-1;
-			int i = nRows - getLCSrow(chunk, 0) - 1;
-			int h = nCols - 1 - (chunksPerRow-1)*chunkLenght;
-	}
+	printf("Tempo: %d", secs);
 	
     MPI_Finalize();
     return 0;
