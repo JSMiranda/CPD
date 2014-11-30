@@ -234,8 +234,11 @@ void printLCS() {
 				i--;
 			}
 		}
+		
+		printf("i,j = %d,%d || Char1: %c || Char2: %c\n", getLCSrow(chunk,i), j+(chunk%chunksPerRow)*chunkLenght, cstr1[getLCSrow(chunk,i)-1] , cstr2[j+(chunk%chunksPerRow)*chunkLenght-1] );		
+		printf("chunk: %d || i,j: %d, %d\n", chunk, i, j);
 		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
-		const bool firstColLCSMat = (chunk%chunksPerRow == 0);
+		const bool firstColLCSMat = (chunk%chunksPerRow == 0 && j==0);
 		if(firstRowLCSMat || firstColLCSMat) {
 			//MPI_Cancel(&req1);
 			//MPI_Cancel(&req2);
@@ -243,8 +246,8 @@ void printLCS() {
 			//MPI_Cancel(&req4);
 			//MPI_Cancel(&req5);
 			printf("Current size: %d\n", currentSize);
-			while(currentSize > 0) {
-				printf("%c", result[(--currentSize)-1]);
+			while(currentSize >= 0) {
+				printf("%c", result[--currentSize]);
 			}
 			printf("\n");
 			return;
