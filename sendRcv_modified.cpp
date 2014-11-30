@@ -186,38 +186,42 @@ void printLCS() {
 	int i, j, chunk=chunksPerProcessor-1;
 	int currentSize = 0;
 	
+	
+    
+	
+	
+	MPI_Request req1, req2, req3, req4, req5;
 	const bool isLastProcess = (id == (chunksPerCol%p - 1 + p)%p);
-	const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
-    const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
-	const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
-	const bool firstColLCSMat = (chunk%chunksPerRow == 0);
-	
-	MPI_Request req1, req2, req3, req4;
-	
 	if(isLastProcess) {
 		printf("%d\n", chunkArray[chunk][nRows - getLCSrow(chunksPerProcessor-1, 0) - 1][nCols - 1 - (chunksPerRow-1)*chunkLenght]);
+	} else {
+		chunk = -1;
 	}
 	
 	while(true) {
-	
-		if(!isLastRowOfChunks) {
+		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
+		const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
+		if(!isLastRowLCSmatrix) {
 			printf("Waiting for receive\n");
 			MPI_Irecv(&i, 1, MPI_INT, (id+1)%p, 0, MPI_COMM_WORLD, &req1);
 			MPI_Irecv(&j, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req2);
 			MPI_Irecv(&currentSize, 1, MPI_INT, (id+1)%p, 3, MPI_COMM_WORLD, &req4);
 			MPI_Irecv(result, currentSize, MPI_CHAR, (id+1)%p, 2, MPI_COMM_WORLD, &req3);
+			MPI_Irecv(&chunk, 1, MPI_INT, (id+1)%p, 4, MPI_COMM_WORLD, &req5);
 			
 			MPI_Wait(&req1, &status);
 			MPI_Wait(&req2, &status);
 			MPI_Wait(&req4, &status);
 			MPI_Wait(&req3, &status);
+			MPI_Wait(&req5, &status);
 			printf("FREEEEEEEEEEEEE\n");
 		} else {
 			i = nRows - getLCSrow(chunksPerProcessor-1, 0) - 1;
 			j = nCols - 1 - (chunksPerRow-1)*chunkLenght;
 		}
 	
-		while( i >= 1 && j >= 1 ){            
+		while( i >= 1 && j >= 1 ){
+			printf("i,j = %d,%d || Char1: %c || Char2: %c\n", getLCSrow(chunk,i), cstr1[getLCSrow(chunk,i)-1], j+(chunk%chunksPerRow)*chunkLenght , cstr2[j+(chunk%chunksPerRow)*chunkLenght-1] );		
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i--;
@@ -230,13 +234,14 @@ void printLCS() {
 				i--;
 			}
 		}
-		
+		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow);
+		const bool firstColLCSMat = (chunk%chunksPerRow == 0);
 		if(firstRowLCSMat || firstColLCSMat) {
 			MPI_Cancel(&req1);
 			MPI_Cancel(&req2);
 			MPI_Cancel(&req3);
-			while(currentSize >= 0) {
-				printf("%c", result[--currentSize]);
+			while(currentSize > 0) {
+				printf("%c", result[(--currentSize)-1]);
 			}
 			printf("\n");
 			return;
@@ -252,6 +257,8 @@ void printLCS() {
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				chunk=-1;
 			} else if (chunkReceiver[chunk][j] <= chunkArray[chunk-1][i][chunkLenght-1]) {
 				j=chunkLenght-1;
 				chunk-=1;
@@ -261,6 +268,8 @@ void printLCS() {
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				chunk=-1;
 			}
 		} else if(i == 0 && j != 0) {
 			//printf("i = 0 - j != 0\n");
@@ -273,6 +282,8 @@ void printLCS() {
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				chunk=-1;
 			} else if (chunkReceiver[chunk][j] <= chunkArray[chunk][i][j-1]) {
 				j--;
 			} else {
@@ -281,6 +292,8 @@ void printLCS() {
 				MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 				MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
 				MPI_Isend(result, currentSize, MPI_CHAR, (id-1+p)%p, 2, MPI_COMM_WORLD, &req3);
+				MPI_Send(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD);
+				chunk=-1;
 			}
 		} else if(i != 0 && j == 0) {
 			//printf("i != 0 - j = 0\n");
