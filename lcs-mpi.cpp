@@ -49,15 +49,21 @@ void readFile(int argc, char *argv[]) {
  
         file >> sequenceSize1 >> sequenceSize2;
  
-        std::getline(file, sequence1);   // ignore one line - to change
+        std::getline(file, sequence1);
         std::getline(file, sequence1);
         std::getline(file, sequence2);
  
         file.close();    
 }
 
+/*
+ * This function gets the row of the original LCS matrix and should be used to
+ * easily access the strings.
+ */
 int getLCSrow(int chunk, int offset) {
 	if(chunk/chunksPerRow > chunksPerCol/p) {
+		// this means we are on a "extra" chunk, result of the
+		// non perfect division of the original matrix by all processes
 		return p*(chunkRowsPerProcessor-1)*chunkLenght + id*chunkLenght + offset;
     } else {
 		return id*chunkLenght + p*(chunk/chunksPerRow)*chunkLenght + offset;
@@ -70,16 +76,11 @@ void processChunks() {
 		const bool firstColLCSMat = (chunk%chunksPerRow == 0);
 		
 		if(!firstRowLCSMat) {
-			//std::cout << "(" << id << ")" << "Waiting to rcv from processor " << ((id == 0) ? (p-1) : (id - 1)) << " || Tag " << chunk%chunksPerRow << "\n";
             MPI_Recv(chunkReceiver[chunk], chunkLenght, MPI_INT, (id == 0) ? p-1 : id - 1, chunk%chunksPerRow, MPI_COMM_WORLD, &status);
-			//std::cout << "(" << id << ")" << "Rcv! CHUNK " << chunk << "   ";
-			//for(int i = 0 ; i < chunkLenght ; i++) {
-			//    std::cout << chunkReceiver[chunk][i] << " ";
-			//}
-			//std::cout << std::endl;
         }
 		
 		// caso especial entre os especiais: i=0 && j=0
+		// utiliza o chunkReceiver (cima) e o chunk anterior (esquerda)
 		if (firstRowLCSMat || firstColLCSMat) {
 		    // do nothing
 		} else if (cstr1[getLCSrow(chunk, 0) - 1] == cstr2[(chunk%chunksPerRow)*chunkLenght - 1]) {
@@ -96,14 +97,8 @@ void processChunks() {
 				chunkArray[chunk][0][j] = 0;
 			}
 		} else {
+			// utiliza o chunkReceiver (cima)
 			for(int j = 1; j < chunkLenght && j+(chunk%chunksPerRow)*chunkLenght < nCols ; j++) {
-			
-				/////////////////////
-				if ( j+(chunk%chunksPerRow)*chunkLenght >= nCols) {
-					}
-				/////////////////////
-			
-			
 				if (cstr1[getLCSrow(chunk, 0) - 1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght - 1]) {
 				    chunkArray[chunk][0][j] = chunkReceiver[chunk][j-1] + cost(j);
 				} else if (chunkReceiver[chunk][j] >= chunkArray[chunk][0][j-1]) {
@@ -120,14 +115,8 @@ void processChunks() {
 				chunkArray[chunk][i][0] = 0;
 			}
         } else {
+			// utiliza o chunk anterior (esquerda)
 			for(int i = 1; i < chunkLenght && getLCSrow(chunk, i) < nRows ; i++) {
-			
-			/////////////////////
-				if ( getLCSrow(chunk, i) >= nRows ) {
-					}
-				/////////////////////
-			
-			
 				if (cstr1[getLCSrow(chunk, i) - 1] == cstr2[(chunk%chunksPerRow)*chunkLenght - 1]) {
 			        chunkArray[chunk][i][0] = chunkArray[chunk-1][i-1][chunkLenght-1] + cost(i);
 				} else if (chunkArray[chunk][i-1][0] >= chunkArray[chunk-1][i][chunkLenght-1]) {
@@ -138,16 +127,11 @@ void processChunks() {
 			}
 		}
 
-		// Restantes casos
+		// Restantes casos - caso normal, como o algoritmo sequencial
 		for(int i = 1; i < chunkLenght && getLCSrow(chunk, i) < nRows ; i++) {
 			for(int j = 1; j < chunkLenght && j+(chunk%chunksPerRow)*chunkLenght < nCols ; j++) {
 				if (cstr1[getLCSrow(chunk, i) - 1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght - 1]) {
 		            chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j-1] + cost(i);
-					/*
-						std::cout << "Found match at " << getLCSrow(chunk, i) << ", " << j+(chunk%chunksPerRow)*chunkLenght << " : "
-						<< cstr1[getLCSrow(chunk, i) - 1] << std::endl << "Chunk " << chunk << " | i " << i << " | j " << j << " Value: " << chunkArray[chunk][i][j] << std::endl;
-					
-					*/
 				} else if (chunkArray[chunk][i-1][j] >= chunkArray[chunk][i][j-1]) {
 				    chunkArray[chunk][i][j] = chunkArray[chunk][i-1][j];
 				} else {
@@ -161,17 +145,7 @@ void processChunks() {
 		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
         const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
         if (!isLastRowLCSmatrix) {
-			//std::cout << "(" << id << ")" << "Sending to processor " << (id+1)%p << " || Tag " << chunk%chunksPerRow << "\n";
             MPI_Isend(chunkArray[chunk][chunkLenght-1], chunkLenght, MPI_INT, (id+1)%p, chunk%chunksPerRow, MPI_COMM_WORLD, &req);
-			//std::cout << "(" << id << ")" << "Send! CHUNK " << chunk << "   ";
-			//if(chunkArray[chunk][chunkLenght-1][0] == -1) {
-			//	for(int i = 0 ; i < chunkLenght ; i++) {
-			//		for(int j = 0 ; j < chunkLenght ; j++) {
-			//			std::cout << chunkArray[chunk][i][j] << " ";
-			//		}
-			//	}
-			//}
-			//std::cout << std::endl;
 		}
     }
 }
@@ -188,14 +162,14 @@ void printLCS() {
 	const bool isLastProcess = (id == (chunksPerCol%p - 1 + p)%p);
 	bool chunkRowBeeingProcessed = false;
 	
-	if(isLastProcess) {
+	if(isLastProcess) { // primeiro processo a iniciar o print
 		printf("%d\n", chunkArray[chunk][nRows - getLCSrow(chunksPerProcessor-1, 0) - 1][nCols - 1 - (chunksPerRow-1)*chunkLenght]);
 		i = nRows - getLCSrow(chunksPerProcessor-1, 0) - 1;
 		j = nCols - 1 - (chunksPerRow-1)*chunkLenght;
 		chunkRowBeeingProcessed = true;
 	}
 	
-	bool jobDone = false;
+	bool jobDone = false; // será true quando o processo processar todas as suas linhas até à esquerda
 	do {
 		const bool isLastRowOfChunks = (chunk >= chunksPerProcessor-chunksPerRow);
 		const bool isLastRowLCSmatrix = isLastProcess && isLastRowOfChunks;
@@ -203,10 +177,9 @@ void printLCS() {
 			MPI_Irecv(&i, 1, MPI_INT, (id+1)%p, 0, MPI_COMM_WORLD, &req1);
 			MPI_Irecv(&j, 1, MPI_INT, (id+1)%p, 1, MPI_COMM_WORLD, &req2);
 			MPI_Irecv(&currentSize, 1, MPI_INT, (id+1)%p, 3, MPI_COMM_WORLD, &req4);
-			MPI_Wait(&req4, &status);
+			MPI_Wait(&req4, &status); // tem que saber o currentSize antes de efectuar o receive a seguir
 			MPI_Irecv(result, currentSize, MPI_CHAR, (id+1)%p, 2, MPI_COMM_WORLD, &req3);
 			MPI_Irecv(&chunk, 1, MPI_INT, (id+1)%p, 4, MPI_COMM_WORLD, &req5);
-			
 			
 			MPI_Wait(&req1, &status);
 			MPI_Wait(&req2, &status);
@@ -233,12 +206,14 @@ void printLCS() {
 		const bool firstRowLCSMat = (id == 0 && chunk < chunksPerRow && i==0);
 		const bool firstColLCSMat = (chunk%chunksPerRow == 0 && j==0);
 		if(id == 0 && (firstRowLCSMat || firstColLCSMat)) {
+			// Acabou o print
 			while(currentSize >= 0) {
 				printf("%c", result[--currentSize]);
 			}
 			printf("\n");
 			return;
 		} else if(id != 0 && (firstRowLCSMat || firstColLCSMat)) {
+			// String found, backtracking to process 0
 			MPI_Isend(&i, 1, MPI_INT, (id-1+p)%p, 0, MPI_COMM_WORLD, &req1);
 			MPI_Isend(&j, 1, MPI_INT, (id-1+p)%p, 1, MPI_COMM_WORLD, &req2);
 			MPI_Isend(&currentSize, 1, MPI_INT, (id-1+p)%p, 3, MPI_COMM_WORLD, &req4);
@@ -246,6 +221,7 @@ void printLCS() {
 			MPI_Isend(&chunk, 1, MPI_INT,(id-1+p)%p, 4, MPI_COMM_WORLD, &req5);
 			jobDone=true;
 		} else if(i == 0 && j == 0) {
+			// utiliza o chunkReceiver (cima) e o chunk anterior (esquerda)
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i=chunkLenght-1;
@@ -281,6 +257,7 @@ void printLCS() {
 				chunkRowBeeingProcessed = false;
 			}
 		} else if(i == 0 && j != 0) {
+			// utiliza o chunkReceiver (cima)
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i=chunkLenght-1;
@@ -314,6 +291,7 @@ void printLCS() {
 				chunkRowBeeingProcessed = false;
 			}
 		} else if(i != 0 && j == 0) {
+			// utiliza o chunk anterior (esquerda)
 			if (cstr1[getLCSrow(chunk,i)-1] == cstr2[j+(chunk%chunksPerRow)*chunkLenght-1]){
 				result[currentSize] = cstr1[getLCSrow(chunk,i)-1];
 				i--;
@@ -348,10 +326,13 @@ int main (int argc, char *argv[]) {
 	
 	MPI_Bcast(&nCols, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&nRows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+	
+	// para nao alterar a funcao readFile, faz-se copias porque o MPI nao permite passagem de std::string
 	cstr1 = (char *) malloc(nRows*sizeof(char));
 	strcpy(cstr1, sequence1.c_str());
 	cstr2 = (char *) malloc(nCols*sizeof(char));
 	strcpy(cstr2, sequence2.c_str());
+	
 	MPI_Bcast(cstr1, nRows, MPI_CHAR, 0, MPI_COMM_WORLD);
 	MPI_Bcast(cstr2, nCols, MPI_CHAR, 0, MPI_COMM_WORLD);
 	
@@ -385,25 +366,18 @@ int main (int argc, char *argv[]) {
 		chunkReceiver[chunk] = &receiverArray[chunk*chunkLenght];
 	}
 	
-	// debug
-	for(int c = 0 ; c < chunksPerProcessor ; c++) {
-		for(int i = 0 ; i < chunkLenght ; i++) {
-			for(int j = 0 ; j < chunkLenght ; j++) {
-				chunkArray[c][i][j] = -1;
-			}
-		}
-	}
-	
 	MPI_Barrier (MPI_COMM_WORLD);
 	processChunks();
-	
-	//std::cout << "Algum processo parou!\n";
-
     MPI_Barrier (MPI_COMM_WORLD);
 	printLCS();
-    secs += MPI_Wtime();
 	
-	printf("Tempo: %f\n", secs);
+	// uncoment this to print execution time
+	/*
+	if(id == 0) {
+		secs += MPI_Wtime();
+		printf("Tempo: %f\n", secs);
+	}
+	*/
 	
     MPI_Finalize();
     return 0;
